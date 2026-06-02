@@ -164,6 +164,18 @@
                 width: 15px;
             }
 
+            .route-tag {
+                background: #075f69;
+                border-radius: 5px;
+                color: whitesmoke;
+                display: inline-block;
+                font-weight: bold;
+                margin-right: 5px;
+                margin-bottom: 5px;
+                padding: 2px 5px;
+                min-width: 12.5px;
+                text-align: center;
+            }
     </style>
         <script>
             window.app = {
@@ -193,14 +205,20 @@
                         url: "https://gocarta.s3.us-east-2.amazonaws.com/public/data/simple_bus_stops/v1/data.points.geojson",
                         layer_type: "circle",
                         min_zoom: 14,
-                    }
+                    },
                 },
                 config: {
                 },
                 data: {
                     routes: null,
                     stops: null,
-                    buses: null
+                    buses: null,
+                    stop_updates: null
+                },
+                render: {
+                    route_tag: function (route_id) {
+                        return `<div class="route-tag" data-route-id="${route_id}">${route_id}</div>`;
+                    }
                 },
                 state: {
                     markers: {
@@ -419,7 +437,7 @@
                             .setPopup(popup)
                             .addTo(map);
                         app.state.markers[key].push(marker);    
-                    }                
+                    }
                 } else if (layer_type === "symbol") {
                     const image = await map.loadImage(icon_image);
                     map.addImage(icon_image, image.data);
@@ -494,11 +512,43 @@
                 await update_layer("buses");
             }
 
-            if (window.location.href.includes("hide_buses=true") === false) {
-                setInterval(function () {
-                    update_buses();
-                }, 1 * 1000);
+            async function sync_trip_updates () {
+                const response = await fetch("https://gocarta.s3.us-east-2.amazonaws.com/public/data/gtfsrt_trip_updates/v1/data.json");
+                const data = await response.json();
+                
+                const trip_updates_by_stop_id = {}
+                data.forEach(function (stop_time) {
+                    const stop_id = stop_time["stop_id"];
+                    const scheduled_arrival_time = stop_time["scheduled_arrival_time"];
+                    const predicted_arrival_time = stop_time["predicted_arrival_time"];
+                    if (!trip_updates_by_stop_id[stop_id]) trip_updates_by_stop_id[stop_id] = [];
+                    trip_updates_by_stop_id[stop_id].push({
+                        "stop_headsign": stop_time["stop_headsign"],
+                        "sheduled_arrival_time": scheduled_arrival_time,
+                        "predicted_arrival_time": predicted_arrival_time,
+                        "vehicle_id": stop_time["vehicle_id"]
+                    });
+                });
+                for (let stop_id in trip_updates_by_stop_id) {
+                    const value = trip_updates_by_stop_id[stop_id];
+                    value.sort(function (a, b) {
+                        return new Date(a.predicted_arrival_time) - new Date(b.predicted_arrival_time);
+                    });
+                }
+                app.data.stop_updates = trip_updates_by_stop_id;
             }
+
+            function connect_stop_updates_to_stop_markers() {
+
+            } 
+
+            setInterval(function () {
+                update_buses();
+            }, 1 * 1000);
+
+            // setInterval(function () {
+            //     sync_trip_updates();
+            // }, 5 * 1000);
 
             ["bike_stations", "bus_stops"].forEach(function (layer_name) {
                 map.on('mouseenter', layer_name, () => {
@@ -527,10 +577,7 @@
                 let description = '';
 
                 if (layerId === 'bus_stops') {
-                    description = `
-                        <strong>Stop ID:</strong><br>${props.id || 'Unknown'}<br>
-                        <strong>Name:</strong><br>${props.name || 'Unnamed'}
-                    `;
+                    description = `<strong>Stop ID:</strong><br>${props.id || 'Unknown'}<br/><br/><strong>Name:</strong><br>${props.name || 'Unnamed'}<br/><br/><strong>Routes:</strong><br>${props.route_ids.split(',').map(rid => app.render.route_tag(rid)).join("")}<br/><br/>`;
                 }
 
                 if (layerId === 'bike_stations') {
