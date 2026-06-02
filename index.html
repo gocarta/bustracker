@@ -188,7 +188,7 @@
                     bus_stops: {
                         url: "https://gocarta.s3.us-east-2.amazonaws.com/public/data/simple_bus_stops/v1/data.points.geojson",
                         layer_type: "circle",
-                        min_zoom: 14
+                        min_zoom: 14,
                     }
                 },
                 config: {
@@ -465,70 +465,59 @@
                 await update_layer("buses");
             }
 
-            // add bus stops
-            async function update_stops () {
-                const res = await fetch(window.app.config.stops);
-                const stops_geojson = await res.json();
-                // console.log(stops_geojson);
-
-                // filter by stops
-                const stops = {
-                    type: "FeatureCollection",
-                    features: stops_geojson.features.filter(feature => feature.properties.route_ids.split(",").includes(app.state.route))
-                };
-
-                if (!stops) {
-                    console.error("couldn't find stops");
-                    return;
-                }
-
-                map.addSource('simple-bus-stops', {
-                    'type': 'geojson',
-                    'data': stops
-                });
-            }
-
             if (window.location.href.includes("hide_buses=true") === false) {
                 setInterval(function () {
                     update_buses();
                 }, 1 * 1000);
             }
-            
 
-            // Add click event for the stops layer
-            map.on('click', 'stops-layer', (e) => {
-                const coordinates = e.features[0].geometry.coordinates.slice();
-                const props = e.features[0].properties;
+            ["bike_stations", "bus_stops"].forEach(function (layer_name) {
+                map.on('mouseenter', layer_name, () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
 
-                // Build the popup content
-                // Adjust 'route_ids' and 'name' if your GeoJSON keys are different
-                const description = `
-                    <strong>Stop Id:</strong><br>${props.id || 'Unknown Id'}<br>
-                    <strong>Stop Name:</strong><br>${props.name || 'Unknown Name'}
-                `;
+                // Change it back to a pointer when it leaves.
+                map.on('mouseleave', layer_name, () => {
+                    map.getCanvas().style.cursor = '';
+                });
+            });
 
-                // Ensure that if the map is zoomed out such that multiple
-                // copies of the feature are visible, the popup appears
-                // over the copy being pointed to.
-                while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-                    coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+            map.on('click', (e) => {
+                const features = map.queryRenderedFeatures(e.point, {
+                    layers: ['bus_stops', 'bike_stations']
+                });
+
+                if (!features.length) return;
+
+                // Only use the top-most feature (first one returned)
+                const feature = features[0];
+                const layerId = feature.layer.id;
+                const coords = feature.geometry.coordinates.slice();
+                const props = feature.properties;
+
+                let description = '';
+
+                if (layerId === 'bus_stops') {
+                    description = `
+                        <strong>Stop ID:</strong><br>${props.id || 'Unknown'}<br>
+                        <strong>Name:</strong><br>${props.name || 'Unnamed'}
+                    `;
                 }
 
-                new maplibregl.Popup()
-                    .setLngLat(coordinates)
+                if (layerId === 'bike_stations') {
+                    description = `
+                        <strong>Station Name:</strong><br>${props.name || 'Unknown'}<br>
+                        <strong>Bikes Available:</strong><br>${props.bikes_available}<br>
+                        <strong>Docks Available:</strong><br>${props.docks_available}
+                    `;
+                }
+
+                new maplibregl.Popup({ offset: 10 })
+                    .setLngLat(coords)
                     .setHTML(description)
                     .addTo(map);
             });
 
-            // Change the cursor to a pointer when the mouse is over the stops layer.
-            map.on('mouseenter', 'stops-layer', () => {
-                map.getCanvas().style.cursor = 'pointer';
-            });
-
-            // Change it back to a pointer when it leaves.
-            map.on('mouseleave', 'stops-layer', () => {
-                map.getCanvas().style.cursor = '';
-            });
         </script>
     </body>
 </html>
