@@ -296,14 +296,7 @@
 
                     for (let i = 0; i < app.state.markers[key].length; i++) {
                         const marker = app.state.markers[key][i];
-                        const el = marker.getElement();
-                        el.style.transition = 'opacity .5s ease';
-                        el.style.opacity = '0.1';
-
-                        // later fade back in
-                        setTimeout(() => {
-                            marker.remove();
-                        }, 1000);
+                        marker.remove();
                     }
                     
                     app.state.markers[key] = [];
