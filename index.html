@@ -177,8 +177,9 @@
                     buses: {
                         url: "https://gocarta.s3.us-east-2.amazonaws.com/public/data/gtfsrt_vehicle_positions/v1/data.points.geojson",
                         layer_type: "marker",
-                        display_fields: ["route_id", "vehicle_id", "timestamp"],
-                        label: "route_id"
+                        display_fields: ["route_id", "headsign", "vehicle_id", "direction"],
+                        label: "route_id",
+                        uid: "vehicle_id"
                     },
                     bus_routes: {
                         url: "https://gocarta.s3.us-east-2.amazonaws.com/public/data/simple_bus_routes/v1/data.lines.geojson",
@@ -288,38 +289,56 @@
                     const circle_stroke_color = layer.circle_stroke_color;
                     const circle_radius = layer.circle_radius;
                     const display_fields = layer.display_fields;
+                    const uid = layer.uid;
                     const label = layer.label;
                     const res = await fetch(url);
                     const data = await res.json();
 
-                    map.getSource(key).setData(data);
+                    const updated_uids = [];
+                    const matched_markers = [];
 
-                    for (let i = 0; i < app.state.markers[key].length; i++) {
-                        const marker = app.state.markers[key][i];
-                        marker.remove();
-                    }
-                    
-                    app.state.markers[key] = [];
+                    const new_markers = [];
+
                     const features = data.features;
                     for (let i = 0; i < features.length; i++) {
                         const feat = features[i];
-                        if (feat.geometry.type !== "Point") continue;
                         const point = feat.geometry.coordinates;
-                        if (!point) continue;
+                        const props = feat.properties;
+                        const uid_value = props[uid];
 
-                        // create a DOM element for the marker
-                        const el = document.createElement('div');
-                        el.className = "marker bus";
-                        el.innerHTML = `<div class="marker-inner bus-inner"><div class="marker-inner-text">${feat.properties[label]}</div></div>`;
-
-                        const description = display_fields.map(fld => `${fld}:\n${feat.properties[fld]}`).join("\n\n");
-                        const popup = new maplibregl.Popup({offset: 25}).setText(description.trim());
-                        const marker = new maplibregl.Marker( { element: el })
-                            .setLngLat(point)
-                            .setPopup(popup)
-                            .addTo(map);
-                        app.state.markers[key].push(marker);    
+                        // find it
+                        const marker = app.state.markers[key].find(function (marker) {
+                            return marker.getElement().getAttribute("data-uid") === (uid_value).toString();
+                        });
+                        if (marker) {
+                            const lngLat = marker.getLngLat();
+                            if (lngLat.lng !== point[0] || lngLat.lat !== point[1]) {
+                                marker.setLngLat(point);
+                            }
+                            matched_markers.push(marker);
+                        } else {
+                            const el = document.createElement('div');
+                            el.className = "marker bus";
+                            el.innerHTML = `<div class="marker-inner bus-inner"><div class="marker-inner-text">${feat.properties[label]}</div></div>`;
+                            const description = display_fields.map(fld => `${fld}:\n${feat.properties[fld]}`).join("\n\n");
+                            const popup = new maplibregl.Popup({offset: 25}).setText(description.trim());
+                            const marker = new maplibregl.Marker( { element: el })
+                                .setLngLat(point)
+                                .setPopup(popup)
+                                .addTo(map);
+                            new_markers.push(marker);    
+                        }
                     }
+       
+                    // delete any markers that weren't matched in the new dataset
+                    app.state.markers[key].forEach(function (marker) {
+                        if (!matched_markers.includes(marker)) {
+                            marker.remove();
+                        }
+                    });
+
+                    // update marker stats
+                    app.state.markers[key] = matched_markers.concat(new_markers);
                 } catch (error) {
                     console.error(error);
                 }
@@ -336,6 +355,7 @@
                 const circle_stroke_color = layer.circle_stroke_color;
                 const circle_radius = layer.circle_radius;
                 const display_fields = layer.display_fields;
+                const uid = layer.uid;
                 const label = layer.label;
                 const res = await fetch(url);
                 const data = await res.json();
@@ -351,6 +371,7 @@
                     const features = data.features;
                     for (let i = 0; i < features.length; i++) {
                         const feat = features[i];
+                        const props = feat.properties;
                         if (feat.geometry.type !== "Point") continue;
                         const point = feat.geometry.coordinates;
                         if (!point) continue;
@@ -359,6 +380,8 @@
                         const el = document.createElement('div');
                         el.className = "marker bus";
                         el.innerHTML = `<div class="marker-inner bus-inner"><div class="marker-inner-text">${feat.properties[label]}</div></div>`;
+
+                        el.setAttribute("data-uid", props[uid]);
 
                         const description = display_fields.map(fld => `${fld}:\n${feat.properties[fld]}`).join("\n\n");
                         const popup = new maplibregl.Popup({offset: 25}).setText(description.trim());
