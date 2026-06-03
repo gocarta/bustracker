@@ -488,6 +488,49 @@
                 }
             }
 
+            function load_data (key) {
+                window.app.data[key] = new Promise(async function (resolve, reject) {
+                    try {
+                        const url = app.catalog[key].url;
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        resolve(data);
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            }
+
+            console.log("calling load data bus route")
+            load_data("bus_routes");
+
+            (async function load_route_colors () {
+                const bus_routes = await app.data.bus_routes;
+                console.log("br:", bus_routes);
+                const route_colors = {};
+                for (let i = 0; i < bus_routes.features.length; i++) {
+                    const props = bus_routes.features[i].properties;
+                    route_colors[props.id] = props.color;
+                }
+                app.state.route_colors = route_colors;
+                console.log("route colors:", app.state.route_colors);
+
+                const css = Object.entries(route_colors)
+                    .map(([routeId, color]) =>
+                    `[data-route-id="${routeId}"] { background-color: ${color}; }`
+                    )
+                    .join('\n');
+
+                // Create style element
+                const style = document.createElement('style');
+                style.type = 'text/css';
+                style.id = 'route-color-styles';
+                style.appendChild(document.createTextNode(css));
+
+                // Inject into head
+                document.head.appendChild(style);
+            })();
+
             async function load_bus_routes () {
                 console.log("loading bus routes");
                 load_layer("bus_routes");            
