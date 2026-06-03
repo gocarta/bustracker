@@ -178,6 +178,22 @@
             }
     </style>
         <script>
+            function sanitize_string(input) {
+                if (typeof input !== 'string') return '';
+
+                let escaped = input
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+
+                let cleaned = escaped.replace(/[^A-Za-z0-9]/g, '');
+
+                return cleaned;
+            }
+        </script>
+        <script>
             window.app = {
                 catalog: {
                     bike_stations: {
@@ -192,9 +208,9 @@
                         display_fields: ["route_id", "headsign", "vehicle_id", "direction"],
                         label: "route_id",
                         uid: "vehicle_id",
-                        get_popup_text: function (feat) {
+                        get_popup_html: function (feat) {
                             const props = feat.properties;
-                            return `Route:\n${props.route_id}\n\nHeadsign:\n${props.headsign}\n\nDirection:\n${props.direction}`;
+                            return `<div>Route:<br/>` + app.render.route_tag(sanitize_string(props.route_id)) + `<br/><br/>Headsign:<br/>${sanitize_string(props.headsign)}<br/>Direction:<br/>${sanitize_string(props.direction)}</div>`;
                         }
                     },
                     bus_routes: {
@@ -314,6 +330,7 @@
                     const uid = layer.uid;
                     const label = layer.label;
                     const get_popup_text = layer.get_popup_text;
+                    const get_popup_html = layer.get_popup_html;
                     const res = await fetch(url);
                     const data = await res.json();
 
@@ -339,20 +356,36 @@
                                 marker.setLngLat(point);
                             }
 
-                            // update popup text
-                            let popup_text;
-                            if (get_popup_text) {
-                                popup_text = get_popup_text(feat);
-                            } else {
-                                popup_text = display_fields.map(fld => `${fld}:\n${feat.properties[fld]}`).join("\n\n").trim();
-                            }
+                            if (get_popup_html) {
+                                let popup_html;
+                                if (get_popup_html) {
+                                    popup_html = get_popup_html(feat);
+                                } else {
+                                    popup_html = display_fields.map(fld => `${fld}:\n${feat.properties[fld]}`).join("\n\n").trim();
+                                }
 
-                            // how can I update popup text
-                            const popup = marker.getPopup();
-                            if (popup._popup_text !== popup_text) {
-                                popup.setText(popup_text);
-                                popup._popup_text = popup_text;
-                            };
+                                // how can I update popup text
+                                const popup = marker.getPopup();
+                                if (popup._popup_html !== popup_html) {
+                                    popup.setHTML(popup_html);
+                                    popup._popup_html = popup_html;
+                                };
+                            } else {
+                                // update popup text
+                                let popup_text;
+                                if (get_popup_text) {
+                                    popup_text = get_popup_text(feat);
+                                } else {
+                                    popup_text = display_fields.map(fld => `${fld}:\n${feat.properties[fld]}`).join("\n\n").trim();
+                                }
+
+                                // how can I update popup text
+                                const popup = marker.getPopup();
+                                if (popup._popup_text !== popup_text) {
+                                    popup.setText(popup_text);
+                                    popup._popup_text = popup_text;
+                                };
+                            }
 
                             matched_markers.push(marker);
                         } else {
