@@ -210,7 +210,11 @@
                         uid: "vehicle_id",
                         get_popup_html: function (feat) {
                             const props = feat.properties;
-                            return `<div><strong>Route:</strong><br/>` + app.render.route_tag(sanitize_string(props.route_id)) + `<br/><br/><strong>Headsign:</strong><br/>${sanitize_string(props.headsign)}<br/><br/><strong>Direction:</strong><br/>${sanitize_string(props.direction)}</div>`;
+                            let results = `<div><strong>Route:</strong><br/>` + app.render.route_tag(sanitize_string(props.route_id));
+                            if (props.headsign && props.direction) {
+                                results += `<br/><br/><strong>Headsign:</strong><br/>${sanitize_string(props.headsign)}<br/><br/><strong>Direction:</strong><br/>${sanitize_string(props.direction)}</div>`;
+                            };
+                            return results;
                         }
                     },
                     bus_routes: {
