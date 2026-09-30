@@ -237,6 +237,7 @@
                             if (props.headsign && props.direction) {
                                 results += `<br/><br/><strong>Headsign:</strong><br/>${sanitize_html(props.headsign)}<br/><br/><strong>Direction:</strong><br/>${sanitize_html(props.direction)}</div>`;
                             };
+                            results += `<br/><strong>Vehicle ID:</strong><br/>${props.vehicle_id}<br/>`;
                             return results;
                         }
                     },
@@ -271,6 +272,16 @@
                     route: null
                 }
             };
+
+        if (location.href.includes("vehicle_ids=")) {
+            app.catalog.buses.filter = function (data) {
+                const vehicle_ids = new URLSearchParams(location.search).get("vehicle_ids").split(",");
+                return {
+                    type: "FeatureCollection",
+                    features: data.features.filter(it => vehicle_ids.includes(it.properties.vehicle_id))
+                };
+            }
+        }
         </script>
     </head>
     <body>
@@ -405,7 +416,9 @@
                     const get_popup_text = layer.get_popup_text;
                     const get_popup_html = layer.get_popup_html;
                     const res = await fetch(url);
-                    const data = await res.json();
+                    let data = await res.json();
+
+                    if (layer.filter) data = layer.filter(data);
 
                     const updated_uids = [];
                     const matched_markers = [];
@@ -511,7 +524,9 @@
                 const uid = layer.uid;
                 const label = layer.label;
                 const res = await fetch(url);
-                const data = await res.json();
+                let data = await res.json();
+
+                if (layer.filter) data = layer.filter(data);
 
                 map.addSource(key, {
                     'type': 'geojson',
